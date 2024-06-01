@@ -1,16 +1,18 @@
 using FluentValidation.AspNetCore;
 using Lar.Infra.DependencyInjection;
-using Lar.WebApi.Validation;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Versioning;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Data;
 using System.Data.SqlClient;
+using System.Data;
 using System.Reflection;
+using System.Text;
+using Lar.WebApi.Validation;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Adiciona serviços ao contêiner.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -66,6 +68,25 @@ string dbConnectionString = builder.Configuration.GetConnectionString("WindowsAu
 builder.Services.AddTransient<IDbConnection>((sp) => new SqlConnection(dbConnectionString));
 DependencyInjection.Register(builder.Services);
 
+// Configuração de autenticação JWT
+var jwtSettings = builder.Configuration.GetSection("Jwt");
+var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtSettings["Issuer"],
+            ValidAudience = jwtSettings["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(key)
+        };
+    });
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -79,6 +100,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseAuthentication(); // Adicione este middleware antes do UseAuthorization
 app.UseAuthorization();
+
 app.MapControllers();
 app.Run();
