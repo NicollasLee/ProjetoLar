@@ -1,10 +1,12 @@
 ﻿using FluentValidation;
 using Lar.Domain.Dto;
 using Lar.Domain.Interface.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Lar.WebApi.Controllers
 {
+    [Authorize]
     [ApiVersion("1.0")]
     [Route("api/[controller]")]
     [ApiController]
@@ -12,31 +14,25 @@ namespace Lar.WebApi.Controllers
     {
         private readonly ILogger<PersonController> _logger;
         private readonly IPersonService _personService;
-        private readonly IValidator<PersonDto> _validator;
 
-        public PersonController(ILogger<PersonController> logger, IPersonService personService, IValidator<PersonDto> validator)
+        public PersonController(ILogger<PersonController> logger, IPersonService personService)
         {
             _logger = logger;
             _personService = personService;
-            _validator = validator;
         }
 
         [HttpPost]
         public async Task<IActionResult> PersonRegistration(PersonDto person)
         {
-            var validationResult = await _validator.ValidateAsync(person);
-            if (!validationResult.IsValid)
-            {
-                return BadRequest(validationResult.Errors);
-            }
-
             try
             {
                 var newPerson = await _personService.RegisterPerson(person);
-
                 _logger.LogInformation("New person registered successfully.");
-
                 return Ok(newPerson);
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(ex.Errors);
             }
             catch (Exception ex)
             {
@@ -68,17 +64,15 @@ namespace Lar.WebApi.Controllers
         {
             try
             {
-                var validationResult = await _validator.ValidateAsync(person);
-                if (!validationResult.IsValid)
-                {
-                    return BadRequest(validationResult.Errors);
-                }
-
                 var updatedPerson = await _personService.UpdatePerson(id, person);
                 if (updatedPerson == null)
                     return NotFound();
 
                 return Ok(updatedPerson);
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(ex.Errors);
             }
             catch (Exception ex)
             {

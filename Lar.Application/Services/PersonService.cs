@@ -1,4 +1,5 @@
-﻿using Lar.Domain.Dto;
+﻿using FluentValidation;
+using Lar.Domain.Dto;
 using Lar.Domain.Entities;
 using Lar.Domain.Interface.Repositories;
 using Lar.Domain.Interface.Services;
@@ -10,30 +11,24 @@ namespace Lar.Application.Services
     {
         private readonly IPersonRepository _personRepository;
         private readonly ILogger<PersonService> _logger;
+        private readonly IValidator<PersonDto> _validator;
 
-        public PersonService(IPersonRepository personRepository, ILogger<PersonService> logger)
+        public PersonService(IPersonRepository personRepository, ILogger<PersonService> logger, IValidator<PersonDto> validator)
         {
             _personRepository = personRepository;
             _logger = logger;
+            _validator = validator;
         }
 
         public async Task<Person> RegisterPerson(PersonDto person)
         {
-            try
+            var validationResult = await _validator.ValidateAsync(person);
+            if (!validationResult.IsValid)
             {
-                var newPerson = await _personRepository.RegisterPerson(person);
-
-                // Log success
-                _logger.LogInformation("New person registered successfully.");
-
-                return newPerson;
+                throw new ValidationException(validationResult.Errors);
             }
-            catch (Exception ex)
-            {
-                // Log error
-                _logger.LogError(ex, "Error occurred while registering a person.");
-                throw;
-            }
+
+            return await _personRepository.RegisterPerson(person);
         }
 
         public async Task<Person> GetPerson(int id)
@@ -57,6 +52,12 @@ namespace Lar.Application.Services
 
         public async Task<Person> UpdatePerson(int id, PersonDto person)
         {
+            var validationResult = await _validator.ValidateAsync(person);
+            if (!validationResult.IsValid)
+            {
+                throw new ValidationException(validationResult.Errors);
+            }
+
             try
             {
                 var updatedPerson = await _personRepository.UpdatePerson(id, person);
